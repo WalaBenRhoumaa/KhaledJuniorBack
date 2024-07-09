@@ -94,11 +94,9 @@ pipeline {
             echo 'Build et tests terminés avec succès !'
         }
         failure {
-            node {
-                echo 'Le build ou les tests ont échoué.'
-                script {
-                    archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
-                }
+            echo 'Le build ou les tests ont échoué.'
+            script {
+                archiveArtifacts artifacts: '*/target/*.log', allowEmptyArchive: true
             }
         }
     }
