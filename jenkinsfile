@@ -33,38 +33,24 @@ pipeline {
             }
         }
 
-        stage('Clean Build'){
-            steps{
+        stage('Clean Build') {
+            steps {
                 sh 'rm -rf node_modules'
             }
         }
 
-
-        stage('Install dependencies'){
-            steps{
-                nodejs('nodeJSInstallationName'){
+        stage('Install dependencies') {
+            steps {
+                nodejs('nodeJSInstallationName') {
                     sh 'npm install --legacy-peer-deps'
-                                        
                 }
             }
         }
 
-
-        // stage('Test') {
-        //     steps {
-        //         echo 'Running tests...'
-        //         dir('khaled-junior-backend-main') {
-        //             sh 'npm test'
-        //         }
-        //     }
-        // }
-
         stage('Build') {
             steps {
                 echo 'Building project...'
-                
-                    sh 'npm run build'
-                }
+                sh 'npm run build'
             }
         }
 
@@ -74,7 +60,6 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'dockeer', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         def customImage = docker.build("${DOCKERHUB_USERNAME}/bnabacken:latest", "-f khaled-junior-backend-main/Dockerfile khaled-junior-backend-main")
-                        // Store the Docker image ID for subsequent steps
                         env.IMAGE_ID_BACKEND = customImage.id
                     }
                 }
@@ -121,8 +106,8 @@ pipeline {
         failure {
             echo 'Build or tests failed.'
             script {
-                // Archive logs or any other relevant information for further inspection
                 archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
             }
         }
     }
+}
