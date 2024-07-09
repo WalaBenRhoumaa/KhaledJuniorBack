@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        GITHUB_PAT = credentials('github-cridentiel')
+        GITHUB_PAT = credentials('github-credential') // Use the ID you specified
         DOCKERHUB_USERNAME = "walabr"
         JD_IMAGE = "${DOCKERHUB_USERNAME}/backend-khaled:latest"
     }
@@ -28,7 +28,7 @@ pipeline {
         stage('Checkout Git repository') {
             steps {
                 echo 'Récupération'
-                git branch: 'main', credentialsId: 'github-cridentiel', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
+                git branch: 'main', credentialsId: 'github-credential', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
             }
         }
 
@@ -94,9 +94,11 @@ pipeline {
             echo 'Build et tests terminés avec succès !'
         }
         failure {
-            echo 'Le build ou les tests ont échoué.'
-            script {
-                archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
+            node {
+                echo 'Le build ou les tests ont échoué.'
+                script {
+                    archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
+                }
             }
         }
     }
