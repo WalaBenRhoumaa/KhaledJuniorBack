@@ -1,17 +1,16 @@
 pipeline {
     agent any
+
     environment {
         GITHUB_PAT = credentials('github-cridentiel')
         DOCKERHUB_USERNAME = "walabr"
-        DEV_TAG = "${DOCKERHUB_USERNAME}/bnabacken:latest-dev"
-        STAGING_TAG = "${DOCKERHUB_USERNAME}/bnabacken:latest-staging"
-        PROD_TAG = "${DOCKERHUB_USERNAME}/bnabacken:latest-prod"
+        JD_IMAGE = "${DOCKERHUB_USERNAME}/backend-khaled:latest"
     }
 
     parameters {
-        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Git branch name')
-        string(name: 'CHANGE_ID', defaultValue: '', description: 'Git change ID for merge requests')
-        string(name: 'CHANGE_TARGET', defaultValue: '', description: 'Git change ID for the target merge requests')
+        string(name: 'BRANCH_NAME', defaultValue: 'main', description: 'Nom de la branche Git')
+        string(name: 'CHANGE_ID', defaultValue: '', description: 'ID de changement Git pour les demandes de fusion')
+        string(name: 'CHANGE_TARGET', defaultValue: '', description: 'ID de changement Git pour les demandes de fusion cible')
     }
 
     stages {
@@ -20,89 +19,84 @@ pipeline {
                 script {
                     branchName = params.BRANCH_NAME
                     targetBranch = branchName
-                    echo "Current branch name: ${branchName}"
-                    echo "Target branch name: ${targetBranch}"
+                    echo "Nom de la branche actuelle : ${branchName}"
+                    echo "Nom de la branche cible : ${targetBranch}"
                 }
             }
         }
 
         stage('Checkout Git repository') {
             steps {
+                echo 'Récupération'
                 git branch: 'main', credentialsId: 'github-cridentiel', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
             }
         }
 
-        stage('Clean Build') {
-            steps {
+        stage('Nettoyage du Build'){
+            steps{
                 sh 'rm -rf node_modules'
             }
         }
 
-        stage('Install dependencies') {
-            steps {
-                nodejs('nodeJSInstallationName') {
+        stage('Installer les dépendances'){
+            steps{
+                nodejs('NodeJS'){
                     sh 'npm install --legacy-peer-deps'
                 }
             }
         }
 
-        stage('Build') {
-            steps {
-                sh 'npm run build'
-            }
-        }
-
         stage('Build Docker Image') {
             steps {
+                echo 'Construction de l\'image Docker...'
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockeer', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        def customImage = docker.build("${DOCKERHUB_USERNAME}/bnabacken:latest", "-f khaled-junior-backend-main/Dockerfile khaled-junior-backend-main")
-                        env.IMAGE_ID_BACKEND = customImage.id
-                    }
+                    def customImage = docker.build("${DOCKERHUB_USERNAME}/backend-khaled:latest", "-f khaled-junior-backend/Dockerfile .")
+                    env.IMAGE_ID_BACKEND = customImage.id
                 }
             }
         }
 
-        stage('Push Docker Image') {
+        stage('Pousser l\'image Docker') {
             steps {
+                echo 'Pousser l\'image Docker vers DockerHub...'
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'dockeer', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                        sh "docker push ${DOCKER_USERNAME}/bnabacken:latest"
+                        sh "docker push ${DOCKER_USERNAME}/backend-khaled:latest"
                     }
                 }
             }
         }
 
-        stage('Run Docker Container') {
+        stage('Exécuter le conteneur Docker') {
             steps {
-                sh "docker run -d -p 6665:6665 --name backend-container ${DOCKERHUB_USERNAME}/bnabacken:latest"
+                echo "Exécution du conteneur Docker"
+                sh "docker run -d -p 6665:6665 --name backend-container ${DOCKERHUB_USERNAME}/backend-khaled:latest"
             }
         }
 
-        stage('Docker Cleanup') {
+        stage('Nettoyage Docker') {
             steps {
+                echo 'Nettoyage des images Docker inutilisées'
                 sh 'docker system prune -af'
             }
         }
 
-        stage('END OF PIPELINE') {
+        stage('FIN DU PIPELINE') {
             steps {
-                echo "Pipeline Closed"
+                echo "Pipeline fermé"
             }
         }
     }
 
     post {
         success {
-            echo 'Build and tests completed successfully!'
+            echo 'Build et tests terminés avec succès !'
         }
         failure {
-            echo 'Build or tests failed.'
+            echo 'Le build ou les tests ont échoué.'
             script {
-                node {
-                    archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
-                }
+                archiveArtifacts artifacts: '*/target/.log', allowEmptyArchive: true
             }
         }
     }
