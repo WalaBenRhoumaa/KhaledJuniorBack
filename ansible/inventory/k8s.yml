@@ -1,0 +1,59 @@
+- name: Deploy backend application on Kubernetes
+  hosts: k8smaster
+  gather_facts: false
+  become: yes
+  tasks:
+    - name: Create deployment
+      k8s:
+        kubeconfig: "~/.kube/config"
+        state: present
+        definition:
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: backend-khaled
+            namespace: default
+            labels:
+              app: backend-khaled
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: backend-khaled
+            template:
+              metadata:
+                labels:
+                  app: backend-khaled
+              spec:
+                containers:
+                  - name: backend-khaled
+                    image: walabr/backend-khaled:prod
+                    ports:
+                      - containerPort: 6668
+              # nodeSelector:
+               #      kubernetes.io/hostname: worker1      
+        # context: "kubernetes-admin@kubernetes"
+        # api_key: "kubeconfig-user-tz4cgnc87h:c5bblz84ddpxbmbnr9wf6fn5n4rw8k8xdn4t4wjgwcj7xq9fzxprsg"
+       # verify_ssl: false
+
+    - name: Create service
+      k8s:
+        state: present
+        kubeconfig: "~/.kube/config"
+        verify_ssl: no
+        definition:
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: backend-khaled
+            namespace: default
+            labels:
+              app: backend-khaled
+          spec:
+            selector:
+              app: backend-khaled
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 6668
+            type: LoadBalancer
