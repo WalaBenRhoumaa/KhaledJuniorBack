@@ -27,8 +27,8 @@ pipeline {
 
         stage('Checkout Git repository') {
             steps {
-                echo 'Récupération'
-                git branch: params.BRANCH_NAME, credentialsId: 'github-credential', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
+                echo 'Récupération du dépôt Git'
+                git branch: params.BRANCH_NAME, credentialsId: 'github-credential', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack.git'
             }
         }
 
