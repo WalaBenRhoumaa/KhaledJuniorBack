@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="Mocha Tests" time="0.004" tests="1" failures="0">
+  <testsuite name="Root Suite" timestamp="2024-07-10T23:43:53" tests="0" time="0.000" failures="0">
+  </testsuite>
+  <testsuite name="Example Node.js Test" timestamp="2024-07-10T23:43:53" tests="1" file="C:\Users\BAZ INFO\Desktop\khaled-junior-backend-main\test\exemple.test.js" time="0.003" failures="0">
+    <testcase name="Example Node.js Test should return true" time="0.001" classname="should return true">
+    </testcase>
+  </testsuite>
+</testsuites>
