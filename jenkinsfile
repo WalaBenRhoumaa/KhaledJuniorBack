@@ -2,7 +2,7 @@ pipeline {
     agent any
 
     environment {
-        GITHUB_PAT = credentials('github-credential') // Use the ID you specified
+        GITHUB_PAT = credentials('github-credential') // Utilisez l'ID que vous avez spécifié
         DOCKERHUB_USERNAME = "walabr"
         JD_IMAGE = "${DOCKERHUB_USERNAME}/backend-khaled:latest"
     }
@@ -28,19 +28,21 @@ pipeline {
         stage('Checkout Git repository') {
             steps {
                 echo 'Récupération'
-                git branch: 'main', credentialsId: 'github-credential', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
+                git branch: params.BRANCH_NAME, credentialsId: 'github-credential', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack'
             }
         }
 
-        stage('Nettoyage du Build'){
-            steps{
+        stage('Nettoyage du Build') {
+            steps {
                 sh 'rm -rf node_modules'
             }
         }
 
-        stage('Installer les dépendances'){
-            steps{
-                nodejs('NodeJS'){
+        stage('Installer les dépendances') {
+            steps {
+                script {
+                    def nodeHome = tool name: 'NodeJS', type: 'NodeJSInstallation'
+                    env.PATH = "${nodeHome}/bin:${env.PATH}"
                     sh 'npm install --legacy-peer-deps'
                 }
             }
@@ -62,7 +64,7 @@ pipeline {
                 script {
                     withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                        sh "docker push ${DOCKER_USERNAME}/backend-khaled:latest"
+                        sh "docker push ${DOCKERHUB_USERNAME}/backend-khaled:latest"
                     }
                 }
             }
@@ -84,7 +86,7 @@ pipeline {
 
         stage('FIN DU PIPELINE') {
             steps {
-                echo "Pipeline fermé"
+                echo "Pipeline terminé"
             }
         }
     }
@@ -94,11 +96,9 @@ pipeline {
             echo 'Build et tests terminés avec succès !'
         }
         failure {
-            node { // Ensure to wrap in a node block for context
-                echo 'Le build ou les tests ont échoué.'
-                script {
-                    archiveArtifacts artifacts: '*/target/*.log', allowEmptyArchive: true
-                }
+            echo 'Le build ou les tests ont échoué.'
+            script {
+                archiveArtifacts artifacts: '*/target/*.log', allowEmptyArchive: true
             }
         }
     }
