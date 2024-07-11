@@ -2,9 +2,11 @@ pipeline {
     agent any
 
     environment {
-        GITHUB_PAT = credentials('github-credentials') // Utilisez l'ID que vous avez spécifié
+        GITHUB_PAT = credentials('github-credentials')
         DOCKERHUB_USERNAME = "walabr"
-        JD_IMAGE = "${DOCKERHUB_USERNAME}/backend-khaled:latest"
+        STAGING_TAG = "${DOCKERHUB_USERNAME}/backend-khaled:staging"
+        PROD_TAG = "${DOCKERHUB_USERNAME}/backend-khaled:prod"
+        DEV_TAG = "${DOCKERHUB_USERNAME}/backend-khaled:dev"
     }
 
     parameters {
@@ -27,69 +29,161 @@ pipeline {
 
         stage('Checkout Git repository') {
             steps {
-                echo 'Récupération du dépôt Git'
-                git branch: params.BRANCH_NAME, credentialsId: 'github-credentials', url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack.git'
+                script {
+                    checkout([
+                        $class: 'GitSCM',
+                        branches: [[name: "*/${params.BRANCH_NAME}"]],
+                        doGenerateSubmoduleConfigurations: false,
+                        extensions: [],
+                        userRemoteConfigs: [[
+                            url: 'https://github.com/WalaBenRhoumaa/KhaledJuniorBack.git',
+                            credentialsId: 'github-credentials'
+                        ]]
+                    ])
+                }
             }
         }
 
-        stage('Nettoyage du Build') {
+        stage('Clean Build') {
             steps {
+                echo 'Nettoyage du Build...'
                 sh 'rm -rf node_modules'
             }
         }
 
-        stage('Installer les dépendances') {
+        stage('Install Dependencies') {
             steps {
-                script {
-                    def nodeHome = tool name: 'NodeJS', type: 'NodeJSInstallation'
-                    env.PATH = "${nodeHome}/bin:${env.PATH}"
+                echo 'Installation des dépendances...'
+                nodejs('NodeJS') {
                     sh 'npm install --legacy-peer-deps'
                 }
             }
         }
-
-        stage('Build Docker Image') {
+        
+        stage('Unit test') {
             steps {
-                echo 'Construction de l\'image Docker...'
-                script {
-                    def customImage = docker.build("${DOCKERHUB_USERNAME}/backend-khaled:latest", "-f khaled-junior-backend/Dockerfile .")
-                    env.IMAGE_ID_BACKEND = customImage.id
+                // Exécution des tests unitaires avec Mocha
+                sh 'npm test'
+            }
+            
+            post {
+                success {
+                    echo 'Unit tests passed!'
+                }
+                failure {
+                    echo 'Unit tests failed! Please check the test results.'
                 }
             }
         }
+        
+     stage('SonarQube Analysis') {
+steps{
+script { 
+def scannerHome = tool 'scanner'
+withSonarQubeEnv {
+sh "${scannerHome}/bin/sonar-scanner"
+}
+} 
+} 
+}
+    
+    
 
-        stage('Pousser l\'image Docker') {
+     stage('Build Docker') {
+            when {
+                expression {
+                    (params.CHANGE_ID != null) && (targetBranch in ['develop', 'main', 'staging'])
+                }
+            }
             steps {
-                echo 'Pousser l\'image Docker vers DockerHub...'
                 script {
-                    withCredentials([usernamePassword(credentialsId: 'docker-credentials', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
-                        sh 'echo $DOCKER_PASSWORD | docker login -u $DOCKER_USERNAME --password-stdin'
-                        sh "docker push ${DOCKERHUB_USERNAME}/backend-khaled:latest"
+                    def dockerTag
+                    if (targetBranch == 'staging') {
+                        dockerTag = STAGING_TAG
+                    } else if (targetBranch == 'main') {
+                        dockerTag = PROD_TAG
+                    } else if (targetBranch == 'develop') {
+                        dockerTag = DEV_TAG
+                    } else {
+                        error "Branch '${targetBranch}' not supported for Docker build."
                     }
+
+                    sh "docker build -t ${dockerTag} ."
                 }
             }
         }
 
-        stage('Exécuter le conteneur Docker') {
+        stage('Docker Login') {
+    when {
+        expression {
+            (params.CHANGE_ID != null) && (targetBranch in ['develop', 'main', 'staging'])
+        }
+    }
+    steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DOCKER_USERNAME', passwordVariable: 'DOCKER_PASSWORD')]) {
+            sh "docker login -u ${DOCKER_USERNAME} -p ${DOCKER_PASSWORD}"
+        }
+    }
+}
+
+stage('Docker Push') {
+    when {
+        expression {
+            (params.CHANGE_ID != null) && (targetBranch in ['develop', 'main', 'staging'])
+        }
+    }
+    steps {
+        sh "docker push ${DOCKERHUB_USERNAME}/backend-khaled --all-tags"
+    }
+}
+
+
+        stage('Remove Containers') {
+            when {
+                expression {
+                    (params.CHANGE_ID != null) && (targetBranch in ['develop', 'main', 'staging'])
+                }
+            }
             steps {
-                echo "Exécution du conteneur Docker"
-                sh "docker run -d -p 6665:6665 --name backend-container ${DOCKERHUB_USERNAME}/backend-khaled:latest"
+                sh '''
+                container_ids=$(docker ps -q --filter "publish=4048/tcp")
+                if [ -n "$container_ids" ]; then
+                    echo "Stopping and removing containers..."
+                    docker stop $container_ids
+                    docker rm $container_ids
+                else
+                    echo "No containers found using port 4048."
+                fi
+                '''
             }
         }
 
-        stage('Nettoyage Docker') {
-            steps {
-                echo 'Nettoyage des images Docker inutilisées'
-                sh 'docker system prune -af'
-            }
-        }
 
-        stage('FIN DU PIPELINE') {
+        stage('Pipeline Finished') {
             steps {
-                echo "Pipeline terminé"
+                echo 'Pipeline terminé.'
             }
         }
     }
+    
+    /*stage('Deploy to Prod') {
+            when {
+                expression { 
+                    (params.CHANGE_ID != null) && (targetBranch == 'main')
+                }
+            }
+            steps {
+                sh "sudo ansible-playbook ansible/k8s.yml -i ansible/inventory/host.yml"
+            }
+        }
+
+        stage('Pipeline Finished') {
+            steps {
+                echo 'Pipeline terminé.'
+            }
+        }
+    }
+*/
 
     post {
         success {
@@ -97,9 +191,7 @@ pipeline {
         }
         failure {
             echo 'Le build ou les tests ont échoué.'
-            script {
-                archiveArtifacts artifacts: '*/target/*.log', allowEmptyArchive: true
-            }
+            archiveArtifacts artifacts: '*/target/*.log', allowEmptyArchive: true
         }
     }
 }

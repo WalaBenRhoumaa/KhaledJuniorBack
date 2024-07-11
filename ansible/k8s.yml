@@ -12,7 +12,7 @@
           kind: Deployment
           metadata:
             name: backend-khaled
-            namespace: default
+            namespace: default #Khaled
             labels:
               app: backend-khaled
           spec:
@@ -27,9 +27,9 @@
               spec:
                 containers:
                   - name: backend-khaled
-                    image: walabr/backend-khaled:prod
+                    image: walabr/backend-khaled:dev
                     ports:
-                      - containerPort: 6668
+                      - containerPort: 6668 #modifier le port il est deja utilisé
               # nodeSelector:
                #      kubernetes.io/hostname: worker1      
         # context: "kubernetes-admin@kubernetes"
