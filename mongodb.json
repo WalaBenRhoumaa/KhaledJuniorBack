@@ -1,6 +1,5 @@
 {
     "mongo": {
-        "uri": "mongodb://127.0.0.1:27017/khaledJunior"
-
+        "uri": "mongodb+srv://IPACT:IPACT2022@cluster0.yxlyy.mongodb.net/KhaledJunior_DB?retryWrites=true&w=majority"
     }
 }
